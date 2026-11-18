@@ -9,14 +9,14 @@ Android-first Expo + React Native app backed by Supabase. The project uses the e
 - Test attempt history and detailed result review.
 - Admin subject/chapter/question/test authoring, question editing and publishing, test publishing, and announcements.
 - Study groups, group messages, and student-to-admin support messages.
-- Private chapter PDF storage bucket and public avatar bucket are provisioned in Supabase; native upload/reader screens still need implementation and device testing.
+- Profile photo upload, private chapter PDF upload, and signed PDF access are implemented; physical Android testing is still required.
 
 ## Security model
 
 - RLS policies protect app-owned tables.
 - Students receive published question text/options through `rxt_student_questions`; the correct answer is not returned before submission.
 - `rxt_submit_attempt` calculates scores in PostgreSQL. The client cannot directly insert or update scores.
-- A student cannot update their own `role` column. Admin promotion is a database-owner operation after verifying the intended account.
+- A student cannot update their own `role` column. The previously designated owner email is promoted to admin only after Supabase confirms that email address.
 - No Supabase service-role or secret key belongs in the app. Use only the project's publishable/anon key.
 - AI MCQ generation is intentionally disabled. Do not add Gemini API integration: its API age/usage terms are incompatible with this app's under-18 student audience. Admins can manually author and review MCQs.
 
@@ -33,9 +33,8 @@ The EAS preview profile is configured for an installable APK. An Expo account an
 
 ## Release checklist
 
-- Complete native avatar upload and PDF upload/viewer screens.
 - Verify realtime chat and all RLS/storage policies with separate student and admin accounts.
-- Finish admin CRUD and validation for subjects, chapters, tests, questions, and notes.
+- Finish and device-test remaining admin CRUD and validation for subjects, chapters, tests, questions, and notes.
 - Test authentication, password reset, offline/error states, test timing, answer submission, history, and chat on a physical Android device.
 - Run security/performance advisors and resolve all RX Test-specific findings.
 - Build and install the EAS APK, then complete end-to-end QA.
