@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "RX Test",
+    "slug": "rx-test-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "rxtest",
+    "android": {
+      "package": "com.rx.testapp",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#090D1C"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-image-picker"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
