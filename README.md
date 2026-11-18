@@ -1,27 +1,41 @@
 # RX Test — Bihar Board MCQ App
 
-Android-first Expo + React Native app backed by Supabase. The current foundation includes email sign-up/sign-in, subject and chapter browsing, chapter test loading, MCQ answering, attempt saving, groups listing, announcements, history and role-gated admin content forms.
+Android-first Expo + React Native app backed by Supabase. The project uses the existing Supabase project **RX-MOD** with app-specific database objects prefixed by `rxt_`. Existing legacy RX-MOD objects are not modified by the RX Test app.
 
-## Backend
-Supabase project RX-MOD (ap-south-1). App-specific tables use the rxt_ prefix; existing RX-MOD tables are not modified by this app.
+## Current app features
 
-## Local setup
-1. Install Node.js LTS and run npm install.
-2. Copy .env.example to .env.
-3. Set EXPO_PUBLIC_SUPABASE_URL and the Supabase publishable/anon key. Never put a service-role key or Gemini key in the app.
-4. Run npx expo start and test on Android.
+- Email sign-up and sign-in, student profile, and database-controlled admin roles.
+- Subject → chapter → published tests → MCQ practice flow.
+- Test attempt history and detailed result review.
+- Admin subject/chapter/question/test authoring, question editing and publishing, test publishing, and announcements.
+- Study groups, group messages, and student-to-admin support messages.
+- Private chapter PDF storage bucket and public avatar bucket are provisioned in Supabase; native upload/reader screens still need implementation and device testing.
+
+## Security model
+
+- RLS policies protect app-owned tables.
+- Students receive published question text/options through `rxt_student_questions`; the correct answer is not returned before submission.
+- `rxt_submit_attempt` calculates scores in PostgreSQL. The client cannot directly insert or update scores.
+- A student cannot update their own `role` column. Admin promotion is a database-owner operation after verifying the intended account.
+- No Supabase service-role or secret key belongs in the app. Use only the project's publishable/anon key.
+- AI MCQ generation is intentionally disabled. Do not add Gemini API integration: its API age/usage terms are incompatible with this app's under-18 student audience. Admins can manually author and review MCQs.
+
+## Local development
+
+1. Install Node.js LTS and run `npm install`.
+2. Copy `.env.example` to `.env`.
+3. Set `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` to the RX-MOD project URL and publishable key.
+4. Run `npx expo start` and test on a physical Android device.
 
 ## Android APK
-Install EAS CLI, authenticate with an Expo account, then run eas build --platform android --profile preview. The preview profile is configured to produce an APK.
 
-## Remaining production work
-- Assign the verified admin UUID in public.rxt_profiles.role='admin' only after the intended owner account registers. Never allow self-assigned admin role.
-- Configure GEMINI_API_KEY as a Supabase Edge Function secret and implement/test secure PDF extraction + MCQ generation. AI questions must remain drafts until admin review.
-- Complete realtime chat, group membership/message screens, avatar upload, question editing/publishing UI and detailed result review.
-- Configure env values and run a real Android build/device test before release.
+The EAS preview profile is configured for an installable APK. An Expo account and a successful EAS Android build/device test are still required before calling the app release-ready.
 
-## AI integration status
-AI question generation is currently disabled. Google's Gemini API terms require API users to be at least 18 and prohibit API clients directed to or likely accessed by under-18 users. Since RX Test is a student app, do not create or add a Gemini API key for this project. The deployed `rxt-generate-mcqs` endpoint is a disabled placeholder and returns HTTP 403. Manual admin MCQ creation remains available.
+## Release checklist
 
-## Security
-Do not commit .env, Supabase secret/service-role keys, Expo tokens or Gemini API keys. Supabase RLS is the authorization boundary; UI role checks alone are not security.
+- Complete native avatar upload and PDF upload/viewer screens.
+- Verify realtime chat and all RLS/storage policies with separate student and admin accounts.
+- Finish admin CRUD and validation for subjects, chapters, tests, questions, and notes.
+- Test authentication, password reset, offline/error states, test timing, answer submission, history, and chat on a physical Android device.
+- Run security/performance advisors and resolve all RX Test-specific findings.
+- Build and install the EAS APK, then complete end-to-end QA.
