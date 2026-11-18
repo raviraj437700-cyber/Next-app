@@ -20,5 +20,10 @@ Install EAS CLI, authenticate with an Expo account, then run eas build --platfor
 - Complete realtime chat, group membership/message screens, avatar upload, question editing/publishing UI and detailed result review.
 - Configure env values and run a real Android build/device test before release.
 
+## AI setup
+1. Create a Gemini API key in Google AI Studio.
+2. In Supabase Dashboard → Edge Functions → Secrets, add `GEMINI_API_KEY` with the key value. Do not paste it into GitHub, app code, `.env.example`, or this chat.
+3. The Edge Function uses the key server-side only. It requires a signed-in admin and leaves all generated questions unpublished for review.
+
 ## Security
 Do not commit .env, Supabase secret/service-role keys, Expo tokens or Gemini API keys. Supabase RLS is the authorization boundary; UI role checks alone are not security.
