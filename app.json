@@ -1,1 +1,21 @@
-{"expo":{"name":"RX Test","slug":"rx-test","version":"1.0.0","orientation":"portrait","scheme":"rxtest","userInterfaceStyle":"automatic","newArchEnabled":true,"plugins":["expo-router"],"android":{"package":"com.rxmod.rxtest","versionCode":1},"experiments":{"typedRoutes":true}}}
+{
+  "expo": {
+    "name": "RX Test",
+    "slug": "rx-test",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "rxtest",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-router"
+    ],
+    "android": {
+      "package": "com.rxmod.rxtest",
+      "versionCode": 1
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
