@@ -1,0 +1,384 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        ('email_verified' in request.auth.token &&
+         request.auth.token.email_verified == true &&
+         'email' in request.auth.token &&
+         request.auth.token.email == 'raviraj43770@gmail.com') ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidPercent(val) {
+      return (val is int && val >= 0 && val <= 100) ||
+             (val is float && val >= 0.0 && val <= 100.0);
+    }
+
+    // --- VALIDATION HELPERS ---
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+             data.boardClass is string && data.boardClass.size() >= 2 && data.boardClass.size() <= 40 &&
+             (!('schoolName' in data) || (data.schoolName is string && data.schoolName.size() <= 120)) &&
+             data.totalScore is int && data.totalScore >= 0 && data.totalScore <= 10000000 &&
+             data.testsTaken is int && data.testsTaken >= 0 && data.testsTaken <= 100000 &&
+             isValidPercent(data.averagePercent) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidLeaderboardEntry(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             data.boardClass is string && data.boardClass.size() >= 2 && data.boardClass.size() <= 40 &&
+             data.visibility == 'public' &&
+             data.totalScore is int && data.totalScore >= 0 && data.totalScore <= 10000000 &&
+             data.testsTaken is int && data.testsTaken >= 0 && data.testsTaken <= 100000 &&
+             isValidPercent(data.averagePercent) &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidSubject(data) {
+      return data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+             data.description is string && data.description.size() <= 300 &&
+             data.boardClass is string && data.boardClass.size() >= 2 && data.boardClass.size() <= 40 &&
+             data.iconKey is string && data.iconKey.size() >= 1 && data.iconKey.size() <= 40 &&
+             data.orderIndex is int && data.orderIndex >= 0 && data.orderIndex <= 1000 &&
+             data.published is bool &&
+             data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidChapter(data) {
+      return isValidId(data.subjectId) &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.summary is string && data.summary.size() <= 400 &&
+             data.chapterNumber is int && data.chapterNumber >= 1 && data.chapterNumber <= 500 &&
+             data.published is bool &&
+             data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidQuiz(data) {
+      return isValidId(data.subjectId) &&
+             isValidId(data.chapterId) &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.durationMinutes is int && data.durationMinutes >= 1 && data.durationMinutes <= 180 &&
+             (data.sourceType == 'manual' || data.sourceType == 'ai_pdf') &&
+             data.published is bool &&
+             data.questions is list && data.questions.size() >= 1 && data.questions.size() <= 100 &&
+             data.questions[0] is map &&
+             data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidTestAttempt(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 80 &&
+             isValidId(data.quizId) &&
+             isValidId(data.chapterId) &&
+             isValidId(data.subjectId) &&
+             data.quizTitle is string && data.quizTitle.size() >= 1 && data.quizTitle.size() <= 120 &&
+             data.subjectName is string && data.subjectName.size() >= 1 && data.subjectName.size() <= 80 &&
+             data.totalQuestions is int && data.totalQuestions >= 1 && data.totalQuestions <= 100 &&
+             data.correctCount is int && data.correctCount >= 0 && data.correctCount <= data.totalQuestions &&
+             data.wrongCount is int && data.wrongCount >= 0 && data.wrongCount <= data.totalQuestions &&
+             isValidPercent(data.percentage) &&
+             data.answers is list && data.answers.size() >= 1 && data.answers.size() <= 100 &&
+             data.answers[0] is int &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidChatThread(data) {
+      return isValidId(data.studentId) &&
+             data.studentName is string && data.studentName.size() >= 1 && data.studentName.size() <= 80 &&
+             data.lastMessage is string && data.lastMessage.size() <= 1000 &&
+             data.unreadByAdmin is int && data.unreadByAdmin >= 0 && data.unreadByAdmin <= 10000 &&
+             data.unreadByStudent is int && data.unreadByStudent >= 0 && data.unreadByStudent <= 10000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidChatMessage(data) {
+      return data.senderId is string && data.senderId.size() >= 1 && data.senderId.size() <= 128 &&
+             (data.senderRole == 'student' || data.senderRole == 'admin') &&
+             data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 80 &&
+             data.text is string && data.text.size() >= 1 && data.text.size() <= 2000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidAnnouncement(data) {
+      return data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.message is string && data.message.size() >= 1 && data.message.size() <= 2000 &&
+             data.targetUserId is string && data.targetUserId.size() >= 1 && data.targetUserId.size() <= 128 &&
+             data.targetUserName is string && data.targetUserName.size() >= 1 && data.targetUserName.size() <= 80 &&
+             (data.priority == 'normal' || data.priority == 'urgent') &&
+             data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidStudyGroup(data) {
+      return data.name is string && data.name.size() >= 2 && data.name.size() <= 80 &&
+             data.description is string && data.description.size() <= 300 &&
+             data.boardClass is string && data.boardClass.size() >= 2 && data.boardClass.size() <= 40 &&
+             data.subjectTag is string && data.subjectTag.size() >= 1 && data.subjectTag.size() <= 40 &&
+             data.inviteCode is string && data.inviteCode.size() >= 4 && data.inviteCode.size() <= 16 &&
+             data.isPublic is bool &&
+             data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128 &&
+             data.creatorName is string && data.creatorName.size() >= 1 && data.creatorName.size() <= 80 &&
+             data.memberIds is list && data.memberIds.size() >= 1 && data.memberIds.size() <= 200 &&
+             data.memberCount is int && data.memberCount == data.memberIds.size() &&
+             data.lastMessage is string && data.lastMessage.size() <= 1000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidGroupMessage(data) {
+      return data.senderId is string && data.senderId.size() >= 1 && data.senderId.size() <= 128 &&
+             data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 80 &&
+             data.text is string && data.text.size() >= 1 && data.text.size() <= 2000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    // --- COLLECTIONS ---
+
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && isValidId(adminId) && request.auth.uid == adminId;
+      allow list, create, update, delete: if false;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'email', 'boardClass', 'totalScore', 'testsTaken', 'averagePercent', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'email', 'boardClass', 'schoolName', 'totalScore', 'testsTaken', 'averagePercent', 'createdAt', 'updatedAt']) &&
+                       isValidUserProfile(incoming());
+      allow update: if isSignedIn() && isValidId(userId) &&
+                       isValidUserProfile(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().email == existing().email &&
+                       incoming().createdAt == existing().createdAt && (
+                         isAdmin() || (
+                           request.auth.uid == userId &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'boardClass', 'schoolName', 'totalScore', 'testsTaken', 'averagePercent', 'updatedAt'])
+                         )
+                       );
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    match /leaderboard/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || (resource != null && existing().visibility == 'public'));
+      allow list: if isSignedIn() && existing().visibility == 'public';
+      allow create: if isSignedIn() && isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'boardClass', 'visibility', 'totalScore', 'testsTaken', 'averagePercent', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'boardClass', 'visibility', 'totalScore', 'testsTaken', 'averagePercent', 'updatedAt']) &&
+                       isValidLeaderboardEntry(incoming());
+      allow update: if isSignedIn() && isValidId(userId) &&
+                       isValidLeaderboardEntry(incoming()) &&
+                       incoming().userId == existing().userId && (
+                         isAdmin() || (
+                           request.auth.uid == userId &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'boardClass', 'totalScore', 'testsTaken', 'averagePercent', 'updatedAt'])
+                         )
+                       );
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    match /subjects/{subjectId} {
+      allow get: if isValidId(subjectId) && (isAdmin() || (isSignedIn() && resource != null && existing().published == true));
+      allow list: if isAdmin() || (isSignedIn() && existing().published == true);
+      allow create: if isAdmin() && isValidId(subjectId) &&
+                       incoming().createdBy == request.auth.uid &&
+                       incoming().keys().hasAll(['name', 'description', 'boardClass', 'iconKey', 'orderIndex', 'published', 'createdBy', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['name', 'description', 'boardClass', 'iconKey', 'orderIndex', 'published', 'createdBy', 'createdAt', 'updatedAt']) &&
+                       isValidSubject(incoming());
+      allow update: if isAdmin() && isValidId(subjectId) &&
+                       isValidSubject(incoming()) &&
+                       incoming().createdBy == existing().createdBy &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'boardClass', 'iconKey', 'orderIndex', 'published', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(subjectId);
+    }
+
+    match /chapters/{chapterId} {
+      allow get: if isValidId(chapterId) && (isAdmin() || (isSignedIn() && resource != null && existing().published == true));
+      allow list: if isAdmin() || (isSignedIn() && existing().published == true);
+      allow create: if isAdmin() && isValidId(chapterId) &&
+                       incoming().createdBy == request.auth.uid &&
+                       incoming().keys().hasAll(['subjectId', 'title', 'summary', 'chapterNumber', 'published', 'createdBy', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['subjectId', 'title', 'summary', 'chapterNumber', 'published', 'createdBy', 'createdAt', 'updatedAt']) &&
+                       isValidChapter(incoming()) &&
+                       exists(/databases/$(database)/documents/subjects/$(incoming().subjectId));
+      allow update: if isAdmin() && isValidId(chapterId) &&
+                       isValidChapter(incoming()) &&
+                       incoming().createdBy == existing().createdBy &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['subjectId', 'title', 'summary', 'chapterNumber', 'published', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(chapterId);
+    }
+
+    match /quizzes/{quizId} {
+      allow get: if isValidId(quizId) && (isAdmin() || (isSignedIn() && resource != null && existing().published == true));
+      allow list: if isAdmin() || (isSignedIn() && existing().published == true);
+      allow create: if isAdmin() && isValidId(quizId) &&
+                       incoming().createdBy == request.auth.uid &&
+                       incoming().keys().hasAll(['subjectId', 'chapterId', 'title', 'durationMinutes', 'sourceType', 'published', 'questions', 'createdBy', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['subjectId', 'chapterId', 'title', 'durationMinutes', 'sourceType', 'published', 'questions', 'createdBy', 'createdAt', 'updatedAt']) &&
+                       isValidQuiz(incoming()) &&
+                       exists(/databases/$(database)/documents/chapters/$(incoming().chapterId));
+      allow update: if isAdmin() && isValidId(quizId) &&
+                       isValidQuiz(incoming()) &&
+                       incoming().createdBy == existing().createdBy &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['subjectId', 'chapterId', 'title', 'durationMinutes', 'sourceType', 'published', 'questions', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(quizId);
+    }
+
+    match /attempts/{attemptId} {
+      allow get: if isValidId(attemptId) && (isAdmin() || (isSignedIn() && resource != null && existing().userId == request.auth.uid));
+      allow list: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(attemptId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().keys().hasAll(['userId', 'userName', 'quizId', 'chapterId', 'subjectId', 'quizTitle', 'subjectName', 'totalQuestions', 'correctCount', 'wrongCount', 'percentage', 'answers', 'createdAt']) &&
+                       incoming().keys().hasOnly(['userId', 'userName', 'quizId', 'chapterId', 'subjectId', 'quizTitle', 'subjectName', 'totalQuestions', 'correctCount', 'wrongCount', 'percentage', 'answers', 'createdAt']) &&
+                       isValidTestAttempt(incoming());
+      allow update: if isAdmin() && isValidId(attemptId) && isValidTestAttempt(incoming());
+      allow delete: if isAdmin() && isValidId(attemptId);
+    }
+
+    match /chats/{studentId} {
+      allow get: if isSignedIn() && isValidId(studentId) && (request.auth.uid == studentId || isAdmin());
+      allow list: if isAdmin() || (isSignedIn() && existing().studentId == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(studentId) &&
+                       (request.auth.uid == studentId || isAdmin()) &&
+                       incoming().studentId == studentId &&
+                       incoming().keys().hasAll(['studentId', 'studentName', 'lastMessage', 'unreadByAdmin', 'unreadByStudent', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['studentId', 'studentName', 'lastMessage', 'unreadByAdmin', 'unreadByStudent', 'createdAt', 'updatedAt']) &&
+                       isValidChatThread(incoming());
+      allow update: if isSignedIn() && isValidId(studentId) &&
+                       isValidChatThread(incoming()) &&
+                       incoming().studentId == existing().studentId &&
+                       incoming().createdAt == existing().createdAt && (
+                         isAdmin() || (
+                           request.auth.uid == studentId &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['studentName', 'lastMessage', 'unreadByAdmin', 'unreadByStudent', 'updatedAt'])
+                         )
+                       );
+      allow delete: if isAdmin() && isValidId(studentId);
+
+      match /messages/{messageId} {
+        allow get, list: if isSignedIn() && isValidId(studentId) && (request.auth.uid == studentId || isAdmin());
+        allow create: if isSignedIn() && isValidId(studentId) && isValidId(messageId) &&
+                         (request.auth.uid == studentId || isAdmin()) &&
+                         incoming().senderId == request.auth.uid &&
+                         ((incoming().senderRole == 'admin' && isAdmin()) || (incoming().senderRole == 'student' && request.auth.uid == studentId)) &&
+                         incoming().keys().hasAll(['senderId', 'senderRole', 'senderName', 'text', 'createdAt']) &&
+                         incoming().keys().hasOnly(['senderId', 'senderRole', 'senderName', 'text', 'createdAt']) &&
+                         isValidChatMessage(incoming());
+        allow update, delete: if isAdmin() && isValidId(studentId) && isValidId(messageId);
+      }
+    }
+
+    match /announcements/{announcementId} {
+      allow get: if isValidId(announcementId) && (isAdmin() || (isSignedIn() && resource != null && (existing().targetUserId == 'ALL' || existing().targetUserId == request.auth.uid)));
+      allow list: if isAdmin() || (isSignedIn() && (existing().targetUserId == 'ALL' || existing().targetUserId == request.auth.uid));
+      allow create: if isAdmin() && isValidId(announcementId) &&
+                       incoming().createdBy == request.auth.uid &&
+                       incoming().keys().hasAll(['title', 'message', 'targetUserId', 'targetUserName', 'priority', 'createdBy', 'createdAt']) &&
+                       incoming().keys().hasOnly(['title', 'message', 'targetUserId', 'targetUserName', 'priority', 'createdBy', 'createdAt']) &&
+                       isValidAnnouncement(incoming());
+      allow update: if isAdmin() && isValidId(announcementId) &&
+                       isValidAnnouncement(incoming()) &&
+                       incoming().createdBy == existing().createdBy &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['title', 'message', 'targetUserId', 'targetUserName', 'priority']);
+      allow delete: if isAdmin() && isValidId(announcementId);
+    }
+
+    match /study_groups/{groupId} {
+      allow get: if isSignedIn() && isValidId(groupId) && (
+        isAdmin() || (resource != null && (existing().isPublic == true || request.auth.uid in existing().memberIds))
+      );
+      allow list: if isAdmin() || (isSignedIn() && (existing().isPublic == true || request.auth.uid in existing().memberIds));
+      allow create: if isSignedIn() && isValidId(groupId) &&
+                       incoming().createdBy == request.auth.uid &&
+                       incoming().memberIds.size() == 1 &&
+                       request.auth.uid in incoming().memberIds &&
+                       incoming().memberCount == 1 &&
+                       incoming().keys().hasAll(['name', 'description', 'boardClass', 'subjectTag', 'inviteCode', 'isPublic', 'createdBy', 'creatorName', 'memberIds', 'memberCount', 'lastMessage', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['name', 'description', 'boardClass', 'subjectTag', 'inviteCode', 'isPublic', 'createdBy', 'creatorName', 'memberIds', 'memberCount', 'lastMessage', 'createdAt', 'updatedAt']) &&
+                       isValidStudyGroup(incoming());
+      allow update: if isSignedIn() && isValidId(groupId) &&
+                       isValidStudyGroup(incoming()) &&
+                       incoming().createdBy == existing().createdBy &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().inviteCode == existing().inviteCode && (
+                         isAdmin() ||
+                         (
+                           request.auth.uid == existing().createdBy &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'boardClass', 'subjectTag', 'isPublic', 'memberIds', 'memberCount', 'lastMessage', 'updatedAt'])
+                         ) ||
+                         (
+                           (existing().isPublic == true || request.auth.uid in existing().memberIds) &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'memberCount', 'updatedAt']) &&
+                           (
+                             (request.auth.uid in incoming().memberIds && !(request.auth.uid in existing().memberIds) && incoming().memberIds.size() == existing().memberIds.size() + 1 && incoming().memberIds.hasAll(existing().memberIds)) ||
+                             (!(request.auth.uid in incoming().memberIds) && request.auth.uid in existing().memberIds && existing().memberIds.size() == incoming().memberIds.size() + 1 && existing().memberIds.hasAll(incoming().memberIds))
+                           )
+                         ) ||
+                         (
+                           request.auth.uid in existing().memberIds &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'updatedAt'])
+                         )
+                       );
+      allow delete: if isSignedIn() && isValidId(groupId) && (isAdmin() || existing().createdBy == request.auth.uid);
+
+      match /messages/{messageId} {
+        allow get, list: if isSignedIn() && isValidId(groupId) && (
+          isAdmin() || request.auth.uid in get(/databases/$(database)/documents/study_groups/$(groupId)).data.memberIds
+        );
+        allow create: if isSignedIn() && isValidId(groupId) && isValidId(messageId) &&
+                         (isAdmin() || request.auth.uid in get(/databases/$(database)/documents/study_groups/$(groupId)).data.memberIds) &&
+                         incoming().senderId == request.auth.uid &&
+                         incoming().keys().hasAll(['senderId', 'senderName', 'text', 'createdAt']) &&
+                         incoming().keys().hasOnly(['senderId', 'senderName', 'text', 'createdAt']) &&
+                         isValidGroupMessage(incoming());
+        allow update, delete: if isAdmin() && isValidId(groupId) && isValidId(messageId);
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">BiharPrep</string>
+    <string name="tagline_bseb">Bihar Board Objective Exam &amp; Chapter Practice</string>
+    <string name="sign_in_with_google">Continue with Google</string>
+    <string name="sign_in_prompt_title">Sign in to Start Test &amp; Track Rank</string>
+    <string name="sign_in_prompt_subtitle">Explore all subjects freely. Sign in once with Google to attempt chapter tests, save your Bihar Board rank, and chat with Admin.</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_leaderboard">Rankings</string>
+    <string name="nav_chat">Help &amp; News</string>
+    <string name="nav_profile">Profile</string>
+    <string name="nav_admin">Admin</string>
+    <string name="action_start_test">Start Test</string>
+    <string name="action_submit_test">Submit Test</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_sign_out">Sign Out</string>
+</resources>
